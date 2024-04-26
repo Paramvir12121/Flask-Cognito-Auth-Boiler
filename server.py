@@ -1,46 +1,67 @@
-from flask import Flask, request, redirect, url_for,render_template
-from jose import jwt
-import boto3
+from flask import Flask, request, jsonify, make_response, render_template, session
+import jwt
+from datetime import datetime, timedelta
+from functools import wraps
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
+##################################
 load_dotenv()
 
 app = Flask(__name__)
+app.config['SECRET_KEY']=os.getenv("FLASK_SECRET_KEY")
 
 
-app.config['AWS_DEFAULT_REGION'] = os.getenv('COGNITO_REGION')
-app.config['AWS_COGNITO_USER_POOL_ID'] = os.getenv('COGNITO_USER_POOL_ID')
-app.config['AWS_COGNITO_USER_POOL_CLIENT_ID'] = os.getenv('COGNITO_CLIENT_ID')
-app.config['AWS_COGNITO_DOMAIN'] = os.getenv('COGNITO_DOMAIN')
-app.config['AWS_COGNITO_USER_POOL_CLIENT_SECRET'] = os.getenv('COGNITO_SECRET', None)
-app.config['AWS_COGNITO_REDIRECT_URL'] = 'http://localhost:5000/aws_cognito_redirect'
-
-
-
-cognito_client = boto3.client('cognito-idp', region_name=COGNITO_REGION, aws_access_key_id=AWS_ACCESS_KEY, aws_secret_access_key=AWS_SECRET_KEY)
-
-
-
-
-
+def token_required(func):
+    @wraps(func)
+    def decorated(*args,**kwargs):
+        token = request.args.get("token")
+        if not token:
+            return jsonify({'Alert!': 'Token is missing!'}), 401
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'])
+        except:
+            return jsonify({'Alert!': 'Invalid Token!'}), 401
+    return decorated
 
 
 
 
 
 
-
-
-
-#################### ROUTES #################################
-
+#########################
 
 @app.route('/')
-def index():
-    return render_template('index.html')
+def home():
+    if not session.get('logged_in'):
+        return render_template('login.html')
+    else:
+        return 'Logged in Currently'
+    
 
+@app.route("/login", methods=['POST'])
+def login():
+    if request.form['username'] and request.form['password'] == '123456':
+        session['logged_in']=True
+        exp_time = datetime.utcnow() + timedelta(seconds=600)
+        token = jwt.encode({
+            'user': request.form['username'],
+            'exp': exp_time.timestamp()
+        },
+        app.config['SECRET_KEY'])
+        return jsonify({'token': token}), 200
+    else:
+        return make_response('Unable to veriy', 403, {'auth': 'Basic realm : "Auth Failed"'})
 
-if __name__ == "__main__":
+    
+@app.route('/public')
+def public():
+    return 'For Public'
+
+@app.route('/auth')
+@token_required
+def auth():
+    return 'JWT is verified, Welcome to the APP'
+
+if __name__ == '__main__':
     app.run(debug=True)
