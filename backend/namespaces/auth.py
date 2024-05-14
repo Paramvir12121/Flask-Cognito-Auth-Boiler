@@ -171,10 +171,7 @@ class Login(Resource):
                 }
             )
             print(response["ChallengeParameters"])
-            db_user = User.query.filter_by(email=email).first()
-            print("email: ",db_user.email)
             # If the login is successful, Cognito responds with tokens
-            db_user = User.query.filter_by(email=email).first()
             if "AuthenticationResult" in response:
                 access_token = response['AuthenticationResult']['AccessToken']
                 refresh_token = response['AuthenticationResult']['RefreshToken']
@@ -187,10 +184,7 @@ class Login(Resource):
                 user.update_access(access_token, refresh_token)
                 session['user_email'] = email
                 session['logged_in'] = True
-                return jsonify({
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                }), 200
+                return {"message": "Login Successful"}, 200
                 
         except client.exceptions.ClientError as error:
             return handle_cognito_error(error)
@@ -254,22 +248,29 @@ class RefreshResource(Resource):
 
 @auth_ns.route('/logout')
 class Logout(Resource):
-    @jwt_required()
     def post(self):
-        email = get_jwt_identity()  # Assuming the JWT has the email as identity
-        user = User.query.filter_by(email=email).first()
-        if user:
-            user.update_access(None, None)  # Clear tokens in the database
-        session.clear()
-        client = get_cognito_client()
-        try:
-            client.global_sign_out(
-                AccessToken=request.headers.get('Authorization')
-            )
-            return jsonify({'message': 'Successfully logged out'}), 200
-        except client.exceptions.ClientError as error:
-            return handle_cognito_error(error)
-        
+        if 'user_email' in session:
+            email = session['user_email']
+            user = User.query.filter_by(email=email).first()
+            if user:
+                access_token = user.access_token  # Retrieve the access token from the user record
+                user.update_access(None, None)  # Clear tokens in the database
+                session.clear()  # Clear the session
+                client = get_cognito_client()
+                try:
+                    if access_token:
+                        client.global_sign_out(AccessToken=access_token)
+                        return jsonify({'message': 'Successfully logged out'}), 200
+                    else:
+                        return jsonify({'message': 'No access token found, manual logout required'}), 400
+                except client.exceptions.ClientError as error:
+                    return handle_cognito_error(error)
+            else:
+                session.clear()  # Clear the session even if no user record is found
+                return jsonify({'message': 'User not found or already logged out'}), 404
+        else:
+            return jsonify({'message': 'No active session found'}), 401
+
 
 
         
