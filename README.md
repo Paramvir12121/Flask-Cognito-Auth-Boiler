@@ -4,3 +4,7 @@ Create a working boilerplate using flask as backend, cognito as authentication s
 
 Frontend 
 - use https://www.creative-tim.com/product/argon-design-system-react as react template
+
+
+Learning sessons
+- https://youtu.be/sBw0O5YTT4Q

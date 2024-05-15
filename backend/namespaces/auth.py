@@ -184,6 +184,7 @@ class Login(Resource):
                 user.update_access(access_token, refresh_token)
                 session['user_email'] = email
                 session['logged_in'] = True
+                print("Session: ", session)
                 return {"message": "Login Successful"}, 200
                 
         except client.exceptions.ClientError as error:
@@ -254,6 +255,7 @@ class Logout(Resource):
             user = User.query.filter_by(email=email).first()
             if user:
                 access_token = user.access_token  # Retrieve the access token from the user record
+                print("access_token: ", access_token)
                 user.update_access(None, None)  # Clear tokens in the database
                 session.clear()  # Clear the session
                 client = get_cognito_client()
